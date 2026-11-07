@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  directUrl    = env("DIRECT_URL")
+  relationMode = "prisma"
+}
+
+enum UserRole {
+  ADMIN
+  CLIENT
+}
+
+enum ServiceStatus {
+  PENDING
+  IN_PROGRESS
+  DOCUMENTS_REQUIRED
+  COMPLETED
+}
+
+enum EnquiryStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  CLOSED
+}
+
+model Admin {
+  id                 String   @id @default(cuid())
+  username           String   @unique @db.VarChar(191)
+  passwordHash       String
+  mustChangePassword Boolean  @default(true)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Client {
+  id                 String          @id @default(cuid())
+  clientId           String          @unique @db.VarChar(191)
+  name               String
+  mobile             String          @unique @db.VarChar(20)
+  passwordHash       String
+  isActive           Boolean         @default(true)
+  mustChangePassword Boolean         @default(true)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  documents          Document[]
+  services           ClientService[]
+}
+
+model DocumentCategory {
+  id        String     @id @default(cuid())
+  name      String     @unique @db.VarChar(191)
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  documents Document[]
+}
+
+model Document {
+  id           String            @id @default(cuid())
+  clientId     String
+  client       Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  documentName String
+  categoryId   String
+  category     DocumentCategory  @relation(fields: [categoryId], references: [id])
+  description  String?           @db.Text
+  fileName     String
+  fileType     String
+  fileSize     Int
+  storageKey   String          @db.VarChar(512)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([clientId])
+  @@index([categoryId])
+}
+
+model Service {
+  id          String          @id @default(cuid())
+  name        String          @unique @db.VarChar(191)
+  description String?         @db.Text
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  assignments ClientService[]
+}
+
+model ClientService {
+  id            String           @id @default(cuid())
+  clientId      String
+  client        Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  serviceId     String
+  service       Service          @relation(fields: [serviceId], references: [id])
+  status        ServiceStatus    @default(PENDING)
+  internalNotes String?          @db.Text
+  clientNotes   String?          @db.Text
+  assignedAt    DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  history       ServiceHistory[]
+
+  @@index([clientId])
+  @@index([serviceId])
+  @@index([status])
+}
+
+model ServiceHistory {
+  id              String        @id @default(cuid())
+  clientServiceId String
+  clientService   ClientService @relation(fields: [clientServiceId], references: [id], onDelete: Cascade)
+  status          ServiceStatus
+  note            String?       @db.Text
+  changedByAdminId String?
+  createdAt       DateTime      @default(now())
+
+  @@index([clientServiceId])
+}
+
+model Enquiry {
+  id        String        @id @default(cuid())
+  name      String
+  mobile    String
+  email     String
+  service   String
+  message   String        @db.Text
+  status    EnquiryStatus @default(NEW)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Testimonial {
+  id        String   @id @default(cuid())
+  quote     String   @db.Text
+  author    String?
+  source    String?
+  isEnabled Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WebsiteSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique @db.VarChar(191)
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  actorType UserRole
+  actorId   String
+  action    String
+  details   String?  @db.Text
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([actorType, actorId])
+  @@index([createdAt])
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique @db.VarChar(191)
+  role      UserRole
+  userId    String
+  ipAddress String?
+  userAgent String?   @db.Text
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, role])
+  @@index([expiresAt])
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  identifier String  @db.VarChar(191)
+  ipAddress String   @db.VarChar(64)
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([identifier, ipAddress, createdAt])
+}
+
+model LoginActivity {
+  id        String   @id @default(cuid())
+  role      UserRole
+  userId    String
+  ipAddress String?
+  userAgent String?  @db.Text
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([userId, role, createdAt])
+}
